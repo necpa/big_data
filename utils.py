@@ -1,6 +1,7 @@
 import joblib
 import numpy as np
 from numpy import ndarray
+import pandas as pd
 from sklearn import pipeline
 from sklearn.feature_selection import SelectFromModel
 from sklearn.neighbors import KNeighborsClassifier
@@ -15,9 +16,10 @@ import warnings
 import matplotlib.pyplot as plt
 from sklearn.model_selection import GridSearchCV, cross_val_score
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import accuracy_score, precision_score, make_scorer
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, ExtraTreesClassifier, BaggingClassifier
+from sklearn.impute import SimpleImputer
 
 warnings.filterwarnings('ignore')
 
@@ -48,7 +50,6 @@ def avg_precision_score_loss(y_true, y_pred):
 
 def avg_precision_accuracy_score(y_true, y_pred):
     return np.mean([precision_score(y_true, y_pred), accuracy_score(y_true, y_pred)])
-
 
 scorings = {
     'accuracy': make_scorer(accuracy_score, greater_is_better=True),
@@ -205,7 +206,7 @@ def get_best_model_cross_validation(models, x, y, scoring):
     print(f'Best strategy: {best_strategy}')
     return best_model, best_strategy, best_data
 
-
+# Cette fonction permet de trier les variables en fonction de leur importance
 def sort_variables(X_train, y_train, verbose):
     clf = RandomForestClassifier(n_estimators=1000, random_state=1)
     clf.fit(X_train, y_train)
@@ -312,4 +313,85 @@ def train(X: ndarray, Y: ndarray, scoring: str):
         return best_model, best_strategy, nb_selected_features
 
 
+### Apprentissage supervisé : Données heterogènes
 
+
+def delete_missing_values(X, y):
+	valid_rows = ~np.isnan(X).any(axis=1)
+	X_clean = X[valid_rows]
+	y_clean = y[valid_rows]
+	return X_clean, y_clean
+
+
+def load_and_prepare_data(filepath, verbose=False):
+	data = pd.read_csv(filepath, header=None, delimiter="\t")
+	data_array = data.values
+	X = data_array[:, :-1]
+	y = data_array[:, -1]
+
+	numeric_cols = []
+	categorical_cols = []
+	for col in range(X.shape[1]):
+		try:
+			X[:, col] = np.where(X[:, col] == '?', np.nan, X[:, col])
+			X[:, col].astype(float)
+			numeric_cols.append(col)
+		except ValueError:
+			categorical_cols.append(col)
+			continue
+
+	print(f'Colonnes numériques : {numeric_cols}')
+	print(f'Colonnes catégorielles : {categorical_cols}')
+
+	X_num = X[:, numeric_cols]
+	X_num = X_num.astype(float)
+
+	y = np.where(y == '+', 1, 0)
+
+	if verbose :
+		print(f'Taille de l\'échantillon:, {X_num.shape}') 
+		print("Nombre d'exemples positifs et négatifs:")
+		plt.hist(y)
+		plt.show()
+	print(f'Nombre d\'exemples positifs : {np.sum(y == 1)}')
+	print(f'Nombre d\'exemples négatifs : {np.sum(y == 0)}')
+
+	return X, y, numeric_cols, categorical_cols
+
+
+def handle_missing_values(X, y, numeric_cols, categorical_cols):
+    X_num = X[:, numeric_cols].astype(float)
+
+    #Imputer les valeurs manquantes dans les colonnes numériques avec la moyenne
+    imp_num = SimpleImputer(missing_values=np.nan, strategy='mean')
+    X_num = imp_num.fit_transform(X_num)
+
+    X_cat = X[:, categorical_cols].astype(str)
+
+	#Convertir les valeurs catégorielles en entiers
+    for col_id in range(X_cat.shape[1]):
+        unique_val, val_idx = np.unique(X_cat[:, col_id], return_inverse=True)
+        X_cat[:, col_id] = val_idx
+
+    X_cat = X_cat.astype(float)
+
+    #Imputer les valeurs manquantes dans les colonnes catégorielles avec la valeur la plus fréquente
+    imp_cat = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+    X_cat = imp_cat.fit_transform(X_cat)
+
+    #supprimer les lignes avec des valeurs manquantes
+    valid_rows = ~np.isnan(X_num).any(axis=1) & ~np.isnan(X_cat).any(axis=1)
+    X_num = X_num[valid_rows]
+    X_cat = X_cat[valid_rows]
+    y = y[valid_rows]
+    
+    return X_num, X_cat, y
+    
+def encode_and_normalize(X_num, X_cat):
+    encoder = OneHotEncoder()
+    X_cat_bin = encoder.fit_transform(X_cat).toarray()
+
+    X_num_scaled = normalize_1(X_num)
+
+    X = np.hstack((X_num_scaled, X_cat_bin))
+    return X
