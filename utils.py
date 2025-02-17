@@ -23,6 +23,7 @@ from sklearn.impute import SimpleImputer
 
 warnings.filterwarnings('ignore')
 
+# Dictionnaire des modèles à comparer
 models_to_compare = {
     'CART': DecisionTreeClassifier(random_state=1),
     'KNN': KNeighborsClassifier(n_neighbors=5, n_jobs=-1),
@@ -32,6 +33,7 @@ models_to_compare = {
     'MLP': MLPClassifier(hidden_layer_sizes=(20, 10), random_state=1),
     'Bagging': BaggingClassifier(n_estimators=200, random_state=1, n_jobs=-1),
 }
+
 
 algos = {
     DecisionTreeClassifier: DecisionTreeClassifier(random_state=1),
@@ -44,13 +46,16 @@ algos = {
 }
 
 
+# Fonction de score personnalisée basée sur la précision
+# Moyenne entre la précision pour la classe positive et négative
 def avg_precision_score_loss(y_true, y_pred):
     return (precision_score(y_true, y_pred) + precision_score(y_true, y_pred, pos_label=0)) / 2
 
-
+# Moyenne entre la précision et l'accuracy
 def avg_precision_accuracy_score(y_true, y_pred):
     return np.mean([precision_score(y_true, y_pred), accuracy_score(y_true, y_pred)])
 
+# Définition des métriques de scoring
 scorings = {
     'accuracy': make_scorer(accuracy_score, greater_is_better=True),
     'precision': make_scorer(avg_precision_score_loss, greater_is_better=True),
@@ -85,18 +90,19 @@ parametres = {
 }
 
 
+# Fonction pour normaliser les données
 def normalize(x_train, x_test):
     scaler = StandardScaler()
     X_train = scaler.fit_transform(x_train)
     X_test = scaler.transform(x_test)
     return X_train, X_test
 
-
+# Version de normalisation appliquée sur un seul ensemble de données
 def normalize_1(x):
     scaler = StandardScaler()
     return scaler.fit_transform(x)
 
-
+# Fonction pour appliquer une réduction de dimension PCA aux données
 def pca(x_train, x_test):
     X_train, X_test = normalize(x_train, x_test)
 
@@ -108,7 +114,7 @@ def pca(x_train, x_test):
     X_test = np.hstack((X_test, X_test_pca))
     return X_train, X_test
 
-
+# Version PCA appliquée sur un seul ensemble de données
 def pca_1(x):
     X = normalize_1(x)
 
@@ -117,7 +123,7 @@ def pca_1(x):
 
     return np.hstack((X, X_pca))
 
-
+# Fonction pour entraîner et évaluer un modèle donné
 def train_and_evaluate(model, X_train, y_train, X_test, y_test, strategy):
     # Entrainement du modèle au jeu de données
     model.fit(X_train, y_train)
@@ -143,6 +149,7 @@ def train_and_evaluate(model, X_train, y_train, X_test, y_test, strategy):
     return mean_score
 
 
+# Sélection du meilleur modèle selon différentes stratégies (normal, normalisé, PCA)
 def get_best_models(models, x_train, x_test, y_train, y_test):
     strategies = {'normal', 'normalisé', 'pca'}
     best_score = 0
@@ -260,13 +267,13 @@ def selection_variables(model, X, Y, verbose):
         plt.show()
     return np.argmax(scores)
 
-
+# Fonction pour effectuer un grid search et trouver les meilleurs paramètres
 def best_parameters(model, param_grid, X, y, scoring):
     grid_search = GridSearchCV(model, param_grid, cv=10, scoring=scoring, n_jobs=-1)
     grid_search.fit(X, y)
     return grid_search.best_estimator_
 
-
+# Fonction pour créer un pipelin pour généraliser la stategy et le modèle
 def creation_pipeline(model, x, y, strategy, max_features):
     p = None
     clf = RandomForestClassifier(n_estimators=1000, random_state=1)
@@ -295,6 +302,7 @@ def creation_pipeline(model, x, y, strategy, max_features):
     p.fit(x, y)
     joblib.dump(p, open('pipeline.joblib', "wb"))
 
+# Fonction d'entrainement pour trouver le meilleur modèle, les meilleurs hyperparamètres et les meilleurs stratégies
 
 def train(X: ndarray, Y: ndarray, scoring: str):
     s = scorings[scoring]
@@ -358,6 +366,7 @@ def load_and_prepare_data(filepath, verbose=False):
 
 	return X, y, numeric_cols, categorical_cols
 
+# Fonction pour gérer les valeurs manquantes
 
 def handle_missing_values(X, y, numeric_cols, categorical_cols):
     X_num = X[:, numeric_cols].astype(float)
@@ -386,7 +395,9 @@ def handle_missing_values(X, y, numeric_cols, categorical_cols):
     y = y[valid_rows]
     
     return X_num, X_cat, y
-    
+
+# Fonction pour encoder les valeurs catégorielles et normaliser les valeurs numériques
+
 def encode_and_normalize(X_num, X_cat):
     encoder = OneHotEncoder()
     X_cat_bin = encoder.fit_transform(X_cat).toarray()
