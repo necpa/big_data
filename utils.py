@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import GridSearchCV, cross_val_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.metrics import accuracy_score, precision_score, make_scorer
+from sklearn.metrics import accuracy_score, precision_score, make_scorer, roc_auc_score
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, ExtraTreesClassifier, BaggingClassifier
 from sklearn.impute import SimpleImputer
 
@@ -60,32 +60,61 @@ scorings = {
     'accuracy': make_scorer(accuracy_score, greater_is_better=True),
     'precision': make_scorer(avg_precision_score_loss, greater_is_better=True),
     'custom': make_scorer(avg_precision_accuracy_score, greater_is_better=True),
+    'roc_auc': make_scorer(roc_auc_score, greater_is_better=True)
 }
 
 parametres = {
     DecisionTreeClassifier: {
         'criterion': ['gini', 'entropy', 'log_loss'],
         'max_depth': [None, 10, 20, 30, 50],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': [None, 'sqrt', 'log2'],
+        'splitter': ['best', 'random'],
     },
     KNeighborsClassifier: {
         'n_neighbors': [3, 5, 10, 20],
+        'weights': ['uniform', 'distance'],
+        'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'],
+        'p': [1, 2],  # 1: Manhattan, 2: Euclidean
     },
     AdaBoostClassifier: {
-        'n_estimators': [100, 200, 500],
+        'n_estimators': [50, 100, 200, 500],
+        'learning_rate': [0.01, 0.1, 1.0],
+        'algorithm': ['SAMME', 'SAMME.R'],
     },
     RandomForestClassifier: {
-        'n_estimators': [100, 200, 500],
+        'n_estimators': [100, 200, 500, 1000],
+        'criterion': ['gini', 'entropy', 'log_loss'],
+        'max_depth': [None, 10, 20, 50],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': ['sqrt', 'log2', None],
+        'bootstrap': [True, False],
     },
     ExtraTreesClassifier: {
         'n_estimators': [100, 200, 500],
         'criterion': ['gini', 'entropy'],
+        'max_depth': [None, 10, 20, 50],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': ['sqrt', 'log2', None],
+        'bootstrap': [True, False],
     },
     MLPClassifier: {
-        'hidden_layer_sizes': [(20,), (40, 20), (50, 25, 10)],
-        'activation': ['relu', 'sigmoid', 'tanh'],
+        'hidden_layer_sizes': [(20,), (40, 20), (50, 25, 10), (100,)],
+        'activation': ['relu', 'sigmoid', 'tanh', 'identity'],
+        'solver': ['adam', 'sgd', 'lbfgs'],
+        'alpha': [0.0001, 0.001, 0.01],
+        'learning_rate': ['constant', 'invscaling', 'adaptive'],
+        'max_iter': [200, 500, 1000],
     },
     BaggingClassifier: {
         'n_estimators': [50, 100, 200, 500],
+        'max_samples': [0.5, 0.7, 1.0],
+        'max_features': [0.5, 0.7, 1.0],
+        'bootstrap': [True, False],
+        'bootstrap_features': [True, False],
     },
 }
 
@@ -314,7 +343,7 @@ def train(X: ndarray, Y: ndarray, scoring: str):
         best_alg = algos[type(best_model)]
         best_model = best_parameters(best_alg, parametres_alg, best_data, Y, s)
 
-        nb_selected_features = selection_variables(best_model, best_data, Y, False)
+        nb_selected_features = selection_variables(best_model, best_data, Y, True)
 
         creation_pipeline(best_model, X, Y, best_strategy, nb_selected_features)
 
